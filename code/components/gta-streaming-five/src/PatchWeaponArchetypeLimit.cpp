@@ -1,9 +1,9 @@
 #include "StdInc.h"
 
 #include <Hooking.h>
+#include <Hooking.Stubs.h>
 
 #include <Error.h>
-#include <MinHook.h>
 
 struct atArrayHeader
 {
@@ -56,16 +56,5 @@ static HookFunction hookFunction([]()
 	g_weaponArchetypeStore = hook::get_address<void*>(location + 0x20);
 	g_getWeaponArchetypeArray = (decltype(g_getWeaponArchetypeArray))hook::get_call(location + 0x2A);
 
-	// the prologue opens with a redundant REX prefix (48 48 89 5C 24 08), which MinHook's
-	// disassembler rejects outright, so hook a byte in where the stream decodes cleanly - a call
-	// landing on the prefix still reaches the jump, as a REX prefix on E9 has no effect.
-	MH_Initialize();
-
-	if (auto status = MH_CreateHook(location + 1, AllocateWeaponArchetypeStub, (void**)&g_origAllocateWeaponArchetype); status != MH_OK)
-	{
-		trace("Couldn't hook the weapon archetype allocator (MinHook error %d) - running out of archetype slots will crash instead of erroring.\n", (int)status);
-		return;
-	}
-
-	MH_EnableHook(MH_ALL_HOOKS);
+	g_origAllocateWeaponArchetype = hook::trampoline(location + 1, AllocateWeaponArchetypeStub);
 });
